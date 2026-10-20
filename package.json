@@ -1,7 +1,7 @@
 {
   "name": "vsgit",
-  "displayName": "vsgit",
-  "description": "",
+  "displayName": "VSGit",
+  "description": "WebStorm-style Git workflows for VS Code: a Branches popup with incoming/outgoing indicators, per-branch actions (update without checkout, merge, rebase, compare, cherry-pick) and the Git menu.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.140.0"
@@ -9,16 +9,10 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "vsgit.helloWorld",
-        "title": "Hello World"
-      }
-    ]
-  },
   "scripts": {
     "vscode:prepublish": "npm run package",
     "compile": "npm run check-types && npm run lint && node esbuild.js",
@@ -48,5 +42,227 @@
   "overrides": {
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6"
+  },
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "VSGit runs git commands and depends on the built-in Git extension, which is disabled in Restricted Mode."
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "vsgit.showGitMenu",
+        "title": "Git Actions…",
+        "category": "VSGit",
+        "icon": "$(source-control)"
+      },
+      {
+        "command": "vsgit.showBranches",
+        "title": "Branches…",
+        "category": "VSGit",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "vsgit.updateProject",
+        "title": "Update Project…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.pull",
+        "title": "Pull…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.fetch",
+        "title": "Fetch",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.push",
+        "title": "Push…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.merge",
+        "title": "Merge…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.rebase",
+        "title": "Rebase…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.resolveConflicts",
+        "title": "Resolve Conflicts…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.abortOperation",
+        "title": "Abort Merge, Rebase or Cherry-Pick",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.newBranch",
+        "title": "New Branch…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.newTag",
+        "title": "New Tag…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.resetHead",
+        "title": "Reset HEAD…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.checkoutRevision",
+        "title": "Checkout Tag or Revision…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.stash",
+        "title": "Stash Changes…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.unstash",
+        "title": "Unstash Changes…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.manageRemotes",
+        "title": "Manage Remotes…",
+        "category": "VSGit"
+      },
+      {
+        "command": "vsgit.compareWithBranch",
+        "title": "Compare with Branch or Tag…",
+        "category": "VSGit",
+        "icon": "$(diff-single)"
+      },
+      {
+        "command": "vsgit.showFileHistory",
+        "title": "Show History",
+        "category": "VSGit",
+        "icon": "$(history)"
+      },
+      {
+        "command": "vsgit.annotateFile",
+        "title": "Annotate with Git Blame",
+        "category": "VSGit",
+        "icon": "$(person)"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "vsgit.showGitMenu",
+          "group": "navigation@0",
+          "when": "scmProvider == git"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "vsgit.compareWithBranch",
+          "group": "navigation@100",
+          "when": "resourceScheme == file && gitOpenRepositoryCount != 0"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "vsgit.compareWithBranch",
+          "group": "3_compare",
+          "when": "resourceScheme == file && gitOpenRepositoryCount != 0"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "vsgit.fileGit",
+          "group": "9_vsgit@1",
+          "when": "resourceScheme == file && gitOpenRepositoryCount != 0"
+        }
+      ],
+      "explorer/context": [
+        {
+          "submenu": "vsgit.fileGit",
+          "group": "9_vsgit@1",
+          "when": "resourceScheme == file && gitOpenRepositoryCount != 0 && !explorerResourceIsFolder"
+        }
+      ],
+      "vsgit.fileGit": [
+        {
+          "command": "vsgit.compareWithBranch",
+          "group": "1_compare@1"
+        },
+        {
+          "command": "vsgit.showFileHistory",
+          "group": "2_history@1"
+        },
+        {
+          "command": "vsgit.annotateFile",
+          "group": "2_history@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "vsgit.compareWithBranch",
+          "when": "resourceScheme == file"
+        },
+        {
+          "command": "vsgit.showFileHistory",
+          "when": "resourceScheme == file"
+        },
+        {
+          "command": "vsgit.annotateFile",
+          "when": "resourceScheme == file"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "VSGit",
+      "properties": {
+        "vsgit.updateMethod": {
+          "type": "string",
+          "enum": [
+            "merge",
+            "rebase"
+          ],
+          "default": "merge",
+          "enumDescriptions": [
+            "Merge the incoming changes into the current branch",
+            "Rebase the current branch on top of the incoming changes"
+          ],
+          "markdownDescription": "How **Update** integrates incoming changes into the current branch. **Update Project…** asks each time and remembers the choice here."
+        },
+        "vsgit.branches.showRecent": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show recently checked-out branches at the top of the Branches popup."
+        },
+        "vsgit.branches.showTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show tags in the Branches popup."
+        },
+        "vsgit.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the current branch with incoming (↓) and outgoing (↑) commit counts in the status bar. Counts compare with the remote-tracking branch, so enable `#git.autofetch#` to keep them current."
+        }
+      }
+    },
+    "submenus": [
+      {
+        "id": "vsgit.fileGit",
+        "label": "Git"
+      }
+    ]
   }
 }

@@ -1,71 +1,26 @@
-# vsgit README
+# VSGit
 
-This is the README for your extension "vsgit". After writing up a brief description, we recommend including the following sections.
+WebStorm-style Git workflows for VS Code, built on the built-in Git extension's API.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- **Branches popup**: click the branch in the status bar. It shows Update Project…, Commit…, Push…, New Branch… and Checkout Tag or Revision…, followed by Recent, Local, Remote and Tags. Each branch shows its incoming (↓) and outgoing (↑) commit counts. You can mark favorites with the star button, and Fetch from the title bar.
+- **Per-branch actions**, as in WebStorm: Checkout, Checkout and Update, New Branch from…, Checkout and Rebase onto current, Compare with current (includes cherry-pick), Show Diff with Working Tree, Rebase current onto…, Merge … into current, Update (fast-forwards a branch without checking it out), Push…, Pull into current Using Rebase/Merge, Rename…, Delete (with Restore).
+- **Hover shortcuts** on each branch in the popup: Update (without checkout), Compare with Current (commit list with **Show Files Diff** and cherry-pick), compare the open file with that branch, and **…** for all actions.
+- **Compare a file with a branch or tag**: use the editor title icon, right-click → **Git** in the editor or Explorer, or the branch popup. The Git submenu also has Show History and Annotate with Git Blame.
+- **Git menu**: the icon in the Source Control title bar. It contains Commit, Push, Update Project (Merge / Rebase / Reset), Pull with options, Fetch, Merge/Rebase with options, Abort/Continue for interrupted operations, Resolve Conflicts (opens the merge editor), Branches, New Branch, New Tag, Reset HEAD (Soft/Mixed/Hard/Keep), Show Git Log, Uncommitted Changes (Stash/Unstash/Rollback), Current File, Manage Remotes and Clone.
 
-For example if there is an image subfolder under your extension project workspace:
+## Settings
 
-\!\[feature X\]\(images/feature-x.png\)
+| Setting | Default | Description |
+|---|---|---|
+| `vsgit.updateMethod` | `merge` | How Update integrates incoming changes (`merge` or `rebase`). |
+| `vsgit.branches.showRecent` | `true` | Show recently checked-out branches. |
+| `vsgit.branches.showTags` | `true` | Show tags in the Branches popup. |
+| `vsgit.statusBar.enabled` | `true` | Show the branch status bar item. |
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+Incoming and outgoing counts compare each branch with its remote-tracking branch, so they are only as fresh as the last fetch. Enable `git.autofetch` to keep them current. To keep only VSGit's branch item in the status bar, right-click the status bar and uncheck **Source Control**.
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+VS Code 1.140+, the built-in Git extension enabled, Git 2.27+ and a trusted workspace.

@@ -7,7 +7,7 @@ import { fromNow, quote } from '../util/format';
 import { buildBranchActions, type BranchAction } from './branchActions';
 import { commandItem, ongoingOperationItems, type CommandItem } from './menuItems';
 import { separator, showPicker, type PickerButton, type PickerController, type Separator } from './quickInput';
-import { refDescription, refIcon } from './refItems';
+import { refDescription, refIcon, sortRefs } from './refItems';
 
 interface RefItem extends vscode.QuickPickItem {
 	readonly type: 'ref';
@@ -173,19 +173,19 @@ export class BranchesPopup {
 				buttons: [...shortcutButtons(ref, activeFile !== undefined), favorite ? FAVORITE_ON : FAVORITE_OFF],
 			};
 		};
-		// Favorites first, then the rest in git's (alphabetical) order.
 		const section = (label: string, refs: readonly GitRef[]): void => {
-			if (refs.length === 0) {
-				return;
+			if (refs.length > 0) {
+				items.push(separator(label), ...sortRefs(refs, ref => favorites.has(ref.fullName)).map(toItem));
 			}
-			const sorted = [...refs.filter(ref => favorites.has(ref.fullName)), ...refs.filter(ref => !favorites.has(ref.fullName))];
-			items.push(separator(label), ...sorted.map(toItem));
 		};
 
+		// The current branch leads Recent, as the latest checkout does in WebStorm; the section itself
+		// only appears when there are other recent branches to switch to.
 		const byName = new Map(data.refs.local.map(branch => [branch.name, branch]));
 		const recent = data.recent.flatMap(name => byName.get(name) ?? []);
 		if (recent.length > 0) {
-			items.push(separator('Recent'), ...recent.map(toItem));
+			const current = data.refs.local.filter(branch => branch.isCurrent);
+			items.push(separator('Recent'), ...[...current, ...recent].map(toItem));
 		}
 		const lastFetch = data.lastFetch ? ` · last fetch ${fromNow(data.lastFetch)}` : '';
 		section('Local', data.refs.local);

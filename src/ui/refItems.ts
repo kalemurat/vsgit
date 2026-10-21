@@ -72,6 +72,15 @@ export function refDescription(ref: GitRef): string | undefined {
 	return parts.length > 0 ? parts.join('  ') : undefined;
 }
 
+/**
+ * WebStorm's order within a Branches popup section: the current branch, then favorites, then the rest
+ * in git's (alphabetical) order.
+ */
+export function sortRefs<T extends GitRef>(refs: readonly T[], isFavorite: (ref: T) => boolean): T[] {
+	const rank = (ref: T): number => (ref.kind === 'local' && ref.isCurrent ? 0 : isFavorite(ref) ? 1 : 2);
+	return [...refs].sort((a, b) => rank(a) - rank(b));
+}
+
 export function toRefItem(ref: GitRef, favorite = false): RefPickItem {
 	return {
 		ref,

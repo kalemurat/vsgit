@@ -4,7 +4,7 @@ WebStorm-style Git workflows for VS Code, built on the built-in Git extension's 
 
 ## Features
 
-- **Branches popup**: click the branch in the status bar. It shows Update Project…, Commit…, Push…, New Branch… and Checkout Tag or Revision…, followed by Recent, Local, Remote and Tags. Each branch shows its incoming (↓) and outgoing (↑) commit counts. You can mark favorites with the star button, and Fetch from the title bar.
+- **Branches popup**: click the branch in the status bar. It shows Update Project…, Commit…, Push…, New Branch… and Checkout Tag or Revision…, followed by Recent, Local, Remote and Tags. The current branch is listed first in Recent and Local, followed by favorites. Each branch shows its incoming (↓) and outgoing (↑) commit counts. You can mark favorites with the star button, and Fetch from the title bar.
 - **Per-branch actions**, as in WebStorm: Checkout, Checkout and Update, New Branch from…, Checkout and Rebase onto current, Compare with current (includes cherry-pick), Show Diff with Working Tree, Rebase current onto…, Merge … into current, Update (fast-forwards a branch without checking it out), Push…, Pull into current Using Rebase/Merge, Rename…, Delete (with Restore).
 - **Hover shortcuts** on each branch in the popup: Update (without checkout), Compare with Current (commit list with **Show Files Diff** and cherry-pick), compare the open file with that branch, and **…** for all actions.
 - **Compare a file with a branch or tag**: use the editor title icon, right-click → **Git** in the editor or Explorer, or the branch popup. The Git submenu also has Show History and Annotate with Git Blame.

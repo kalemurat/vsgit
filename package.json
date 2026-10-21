@@ -2,7 +2,7 @@
   "name": "vsgit",
   "displayName": "VSGit",
   "description": "WebStorm-style Git workflows for VS Code: a Branches popup with incoming/outgoing indicators, per-branch actions (update without checkout, merge, rebase, compare, cherry-pick) and the Git menu.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.140.0"
   },

@@ -27,7 +27,7 @@ export class GitMenu {
 		]);
 		const { sync, branches, integration, workspace } = this.flows;
 		const all = this.ctx.registry.all;
-		const ongoingItems = ongoingOperationItems(ongoing, repository, this.flows, true);
+		const ongoingItems = ongoingOperationItems(ongoing, repository, this.flows);
 		// Merge/rebase entries sit under their main action; cherry-pick/revert ones close the menu, as in WebStorm.
 		const otherOngoing = ongoing === 'cherry-pick' || ongoing === 'revert' ? ongoingItems : [];
 

@@ -148,7 +148,7 @@ export class BranchesPopup {
 		const all = this.ctx.registry.all;
 		const items: (PopupItem | Separator)[] = [];
 
-		const ongoing = ongoingOperationItems(data.ongoing, repository, this.flows, false);
+		const ongoing = ongoingOperationItems(data.ongoing, repository, this.flows);
 		if (ongoing.length > 0) {
 			items.push(...ongoing, separator());
 		}

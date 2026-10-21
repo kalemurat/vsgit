@@ -15,9 +15,10 @@ export function commandItem(label: string, run: CommandItem['run'], icon?: strin
 
 /**
  * Abort/Continue entries for an interrupted operation (IntelliJ's `Git.Ongoing.Rebase.Actions`
- * group, plus Commit Merge in the main menu's merge group).
+ * group). Commit Merge (`git commit --no-edit`) is an addition: WebStorm concludes a merge from its
+ * commit dialog, while here it is offered in both the main menu and the Branches popup.
  */
-export function ongoingOperationItems(operation: OngoingOperation | undefined, repository: GitRepository, flows: Flows, includeCommitMerge: boolean): CommandItem[] {
+export function ongoingOperationItems(operation: OngoingOperation | undefined, repository: GitRepository, flows: Flows): CommandItem[] {
 	const integration = flows.integration;
 	switch (operation) {
 		case 'rebase':
@@ -28,7 +29,7 @@ export function ongoingOperationItems(operation: OngoingOperation | undefined, r
 			];
 		case 'merge':
 			return [
-				...(includeCommitMerge ? [commandItem('Commit Merge', () => integration.commitMerge(repository), 'check')] : []),
+				commandItem('Commit Merge', () => integration.commitMerge(repository), 'check'),
 				commandItem('Abort Merge', () => integration.abort(repository, 'merge'), 'stop-circle'),
 			];
 		case 'cherry-pick':

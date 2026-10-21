@@ -73,10 +73,16 @@ export class SyncFlows {
 			this.ctx.runner.error(`Tracked branch is not configured for ${quote(branch.name)}`);
 			return;
 		}
-		const outcome = await this.ctx.runner.run(repository, `Updating ${branch.name}`, () => repository.fastForward(branch),
-			{ handled: isFastForwardRejected });
+		const upstreamName = branch.upstream.name;
+		const outcome = await this.ctx.runner.run(repository, `Updating ${branch.name}`, async () => {
+			await repository.fastForward(branch);
+			return repository.countCommits(`${branch.commit}..${branch.fullName}`);
+		}, { handled: isFastForwardRejected });
 		if (outcome.ok) {
-			vscode.window.setStatusBarMessage(`$(check) ${quote(branch.name)} is up to date with ${branch.upstream.name}`, 5000);
+			const message = outcome.value === 0
+				? `${quote(branch.name)} is already up to date with ${upstreamName}`
+				: `${quote(branch.name)} updated with ${plural(outcome.value, 'commit')} from ${upstreamName}`;
+			vscode.window.setStatusBarMessage(`$(check) ${message}`, 5000);
 			return;
 		}
 		if (isFastForwardRejected(outcome.error)) {

@@ -1,14 +1,25 @@
 import * as vscode from 'vscode';
-import { isFastForwardRejected, isPushRejected } from '../git/errors';
+import { errorSummary, isFastForwardRejected, isPushRejected } from '../git/errors';
 import type { GitRepository } from '../git/gitRepository';
 import type { CommitSummary, LocalBranch, MergeOption, RemoteBranch, UpdateMethod } from '../git/types';
 import { Settings } from '../settings';
 import { openCommitChanges, toCommitItem, type CommitPickItem } from '../ui/commits';
+import { buildIncomingItems, hasIncomingCommits, type IncomingBranch, type IncomingBranchItem } from '../ui/incomingBranches';
 import { confirm, separator, showMultiPicker, showPicker, type Separator } from '../ui/quickInput';
+import { sortRefs } from '../ui/refItems';
 import { plural, quote } from '../util/format';
 import type { FlowContext, Flows } from './context';
+import type { Outcome } from './runner';
 
 type UpdateChoice = UpdateMethod | 'reset';
+
+export interface BranchUpdateResult {
+	readonly updated: readonly IncomingBranch[];
+	/** Branches that are not checked out and could not be fast-forwarded because they have local commits. */
+	readonly rejected: readonly IncomingBranch[];
+	/** Failures the runner already reported (network, conflicts, …). */
+	readonly failed: readonly IncomingBranch[];
+}
 
 interface UpdateMethodItem extends vscode.QuickPickItem {
 	readonly method: UpdateChoice;
@@ -38,18 +49,151 @@ interface PushActionItem extends vscode.QuickPickItem {
 export class SyncFlows {
 	constructor(private readonly ctx: FlowContext, private readonly flows: Flows) {}
 
-	/** Git | Fetch: fetches all remotes of every given repository. */
+	/** Fetches all remotes of every given repository (the Branches popup's fetch button). */
 	async fetch(repositories: readonly GitRepository[]): Promise<void> {
+		const result = await this.fetchRepositories(repositories);
+		if (result?.allSucceeded) {
+			vscode.window.setStatusBarMessage('$(check) Fetch finished', 4000);
+		}
+	}
+
+	/**
+	 * Git | Fetch: fetches all remotes of every given repository, then reports the local branches
+	 * that have incoming commits and offers to update them.
+	 */
+	async fetchAndReview(repositories: readonly GitRepository[]): Promise<void> {
+		const result = await this.fetchRepositories(repositories);
+		if (!result) {
+			return;
+		}
+		const incoming = await this.findIncomingBranches(result.fetched);
+		if (incoming.length === 0) {
+			if (result.allSucceeded) {
+				vscode.window.setStatusBarMessage('$(check) Fetch finished: no branch has incoming commits', 5000);
+			}
+			return;
+		}
+		// Not awaited: the notification may wait in the notification center long after the fetch.
+		void this.offerIncomingUpdate(incoming, result.fetched).catch(error => this.ctx.runner.error(errorSummary(error)));
+	}
+
+	/**
+	 * Local branches of the given repositories whose tracked branch has commits they lack, as of the
+	 * last fetch. Repositories are ordered by name, the current branch first within each.
+	 */
+	async findIncomingBranches(repositories: readonly GitRepository[]): Promise<IncomingBranch[]> {
+		const sorted = [...repositories].sort((a, b) => a.name.localeCompare(b.name));
+		const perRepository = await Promise.all(sorted.map(async repository => {
+			try {
+				const { local } = await repository.getRefs();
+				return sortRefs(local.filter(hasIncomingCommits), () => false).map(branch => ({ repository, branch }));
+			} catch (error) {
+				this.ctx.runner.error(`Could not read the branches of ${quote(repository.name)}: ${errorSummary(error)}`);
+				return [];
+			}
+		}));
+		return perRepository.flat();
+	}
+
+	/** Lists the branches with incoming commits across the repositories and updates the selected ones. */
+	async updateIncomingBranches(repositories: readonly GitRepository[]): Promise<void> {
+		// A repository may have been closed while a notification offering this was waiting.
+		const open = repositories.filter(repository => this.ctx.registry.all.includes(repository));
+		const incoming = await this.findIncomingBranches(open);
+		if (incoming.length === 0) {
+			this.ctx.runner.info('No branch has incoming commits. Fetch first to see the latest remote changes.');
+			return;
+		}
+		const method = Settings.updateMethod;
+		const { items, selected } = buildIncomingItems(incoming, method, open.length > 1);
+		const picked = await showMultiPicker<IncomingBranchItem>({
+			title: 'Update Branches with Incoming Commits',
+			placeholder: 'Select the branches to update, then press Enter (branches that are not checked out are fast-forwarded)',
+			items,
+			selected,
+		});
+		if (!picked || picked.length === 0) {
+			return;
+		}
+		this.reportBranchUpdates(await this.updateBranches(picked.map(item => item.entry), method));
+	}
+
+	/**
+	 * Updates each branch from its tracked branch without fetching again: the current branch is merged
+	 * or rebased with `method`, any other branch is fast-forwarded without a checkout. Repositories
+	 * run in parallel, the branches of one repository one after another.
+	 */
+	async updateBranches(entries: readonly IncomingBranch[], method: UpdateMethod): Promise<BranchUpdateResult> {
+		const byRepository = new Map<GitRepository, IncomingBranch[]>();
+		for (const entry of entries) {
+			byRepository.set(entry.repository, [...(byRepository.get(entry.repository) ?? []), entry]);
+		}
+		const result = { updated: [] as IncomingBranch[], rejected: [] as IncomingBranch[], failed: [] as IncomingBranch[] };
+		await Promise.all([...byRepository.values()].map(async list => {
+			for (const entry of list) {
+				result[await this.updateIncomingBranch(entry, method)].push(entry);
+			}
+		}));
+		return result;
+	}
+
+	private async updateIncomingBranch({ repository, branch }: IncomingBranch, method: UpdateMethod): Promise<keyof BranchUpdateResult> {
+		// Read HEAD now rather than trusting the listing: the user may have switched branches meanwhile.
+		if (repository.currentBranchName === branch.name) {
+			return (await this.integrateUpstream(repository, method, false)).ok ? 'updated' : 'failed';
+		}
+		const outcome = await this.ctx.runner.run(repository, `Updating ${branch.name}`,
+			() => repository.fastForward(branch), { handled: isFastForwardRejected });
+		if (outcome.ok) {
+			return 'updated';
+		}
+		return isFastForwardRejected(outcome.error) ? 'rejected' : 'failed';
+	}
+
+	private reportBranchUpdates({ updated, rejected }: BranchUpdateResult): void {
+		if (updated.length > 0) {
+			const repositoryCount = new Set(updated.map(entry => entry.repository)).size;
+			const where = repositoryCount > 1 ? ` in ${plural(repositoryCount, 'repository', 'repositories')}` : '';
+			vscode.window.setStatusBarMessage(`$(check) Updated ${plural(updated.length, 'branch', 'branches')}${where}`, 5000);
+		}
+		if (rejected.length === 1) {
+			const [{ repository, branch }] = rejected;
+			void this.offerCheckoutAndUpdate(repository, branch);
+		} else if (rejected.length > 1) {
+			const names = rejected.map(({ repository, branch }) => `${quote(branch.name)} (${repository.name})`).join(', ');
+			void vscode.window.showWarningMessage(
+				`${plural(rejected.length, 'branch', 'branches')} could not be fast-forwarded because they have local commits: ${names}. ` +
+				'Use Checkout and Update in the Branches popup to merge or rebase them.');
+		}
+	}
+
+	private async offerIncomingUpdate(incoming: readonly IncomingBranch[], repositories: readonly GitRepository[]): Promise<void> {
+		const repositoryNames = [...new Set(incoming.map(entry => entry.repository.name))];
+		const where = repositoryNames.length > 1
+			? `in ${plural(repositoryNames.length, 'repository', 'repositories')}`
+			: `in ${quote(repositoryNames[0])}`;
+		const update = 'Update Branches…';
+		const choice = await vscode.window.showInformationMessage(
+			`Fetch finished: ${plural(incoming.length, 'branch', 'branches')} ${where} ${incoming.length === 1 ? 'has' : 'have'} incoming commits.`,
+			update);
+		if (choice === update) {
+			await this.updateIncomingBranches(repositories);
+		}
+	}
+
+	/** Fetches every repository that has a remote; undefined when none has. */
+	private async fetchRepositories(repositories: readonly GitRepository[]): Promise<{ fetched: GitRepository[]; allSucceeded: boolean } | undefined> {
 		const withRemotes = repositories.filter(repository => repository.remoteNames.length > 0);
 		if (withRemotes.length === 0) {
 			this.ctx.runner.error('No remotes are configured. Use Manage Remotes… to add one.');
-			return;
+			return undefined;
 		}
 		const outcomes = await Promise.all(withRemotes.map(repository =>
 			this.ctx.runner.run(repository, `Fetching ${repository.name}`, () => repository.fetchAll())));
-		if (outcomes.every(outcome => outcome.ok)) {
-			vscode.window.setStatusBarMessage('$(check) Fetch finished', 4000);
-		}
+		return {
+			fetched: withRemotes.filter((_, index) => outcomes[index].ok),
+			allSucceeded: outcomes.every(outcome => outcome.ok),
+		};
 	}
 
 	/** Git | Update Project…: fetches and integrates the tracked branch in every repository. */
@@ -86,13 +230,18 @@ export class SyncFlows {
 			return;
 		}
 		if (isFastForwardRejected(outcome.error)) {
-			const checkoutAndUpdate = 'Checkout and Update';
-			const choice = await vscode.window.showWarningMessage(
-				`${quote(branch.name)} has commits that are not in ${branch.upstream.name}, so it cannot be fast-forwarded without a checkout.`,
-				checkoutAndUpdate);
-			if (choice === checkoutAndUpdate) {
-				await this.flows.branches.checkoutAndUpdate(repository, branch);
-			}
+			await this.offerCheckoutAndUpdate(repository, branch);
+		}
+	}
+
+	private async offerCheckoutAndUpdate(repository: GitRepository, branch: LocalBranch): Promise<void> {
+		const checkoutAndUpdate = 'Checkout and Update';
+		const where = this.ctx.registry.all.length > 1 ? ` in ${quote(repository.name)}` : '';
+		const choice = await vscode.window.showWarningMessage(
+			`${quote(branch.name)}${where} has commits that are not in ${branch.upstream?.name ?? 'its tracked branch'}, so it cannot be fast-forwarded without a checkout.`,
+			checkoutAndUpdate);
+		if (choice === checkoutAndUpdate) {
+			await this.flows.branches.checkoutAndUpdate(repository, branch);
 		}
 	}
 
@@ -117,8 +266,23 @@ export class SyncFlows {
 			return false;
 		}
 
-		const outcome = await this.ctx.runner.run(repository, `Updating ${repository.name}`, async () => {
-			if (upstream.remote !== '.') {
+		const outcome = await this.integrateUpstream(repository, method, upstream.remote !== '.');
+		if (outcome.ok) {
+			const message = outcome.value === 0
+				? `All files are up-to-date in ${quote(repository.name)}`
+				: `${quote(branch)} updated with ${plural(outcome.value, 'commit')} from ${upstreamName}`;
+			vscode.window.setStatusBarMessage(`$(check) ${message}`, 5000);
+		}
+		return outcome.ok;
+	}
+
+	/**
+	 * Optionally fetches all remotes, then merges, rebases or resets the current branch onto
+	 * `@{upstream}`. The outcome holds the number of incoming commits.
+	 */
+	private integrateUpstream(repository: GitRepository, method: UpdateChoice, fetchFirst: boolean): Promise<Outcome<number>> {
+		return this.ctx.runner.run(repository, `Updating ${repository.name}`, async () => {
+			if (fetchFirst) {
 				await repository.fetchAll();
 			}
 			const incoming = await repository.countCommits('HEAD..@{upstream}');
@@ -133,13 +297,6 @@ export class SyncFlows {
 			}
 			return incoming;
 		});
-		if (outcome.ok) {
-			const message = outcome.value === 0
-				? `All files are up-to-date in ${quote(repository.name)}`
-				: `${quote(branch)} updated with ${plural(outcome.value, 'commit')} from ${upstreamName}`;
-			vscode.window.setStatusBarMessage(`$(check) ${message}`, 5000);
-		}
-		return outcome.ok;
 	}
 
 	/** Git | Pull…: choose a remote branch and options, then fetch it and merge or rebase. */

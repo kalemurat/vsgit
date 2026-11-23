@@ -2,7 +2,7 @@
   "name": "vsgit",
   "displayName": "VSGit",
   "description": "WebStorm-style Git workflows for VS Code: a Branches popup with incoming/outgoing indicators, per-branch actions (update without checkout, merge, rebase, compare, cherry-pick) and the Git menu.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "engines": {
     "vscode": "^1.140.0"
   },
@@ -78,7 +78,13 @@
       },
       {
         "command": "vsgit.fetch",
-        "title": "Fetch",
+        "title": "Fetch All Repositories",
+        "category": "VSGit",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "vsgit.updateBranches",
+        "title": "Update Branches with Incoming Commits…",
         "category": "VSGit"
       },
       {
@@ -165,6 +171,11 @@
         {
           "command": "vsgit.showGitMenu",
           "group": "navigation@0",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "vsgit.fetch",
+          "group": "navigation@1",
           "when": "scmProvider == git"
         }
       ],

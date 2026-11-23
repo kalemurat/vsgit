@@ -148,12 +148,12 @@ export function showPicker<T extends vscode.QuickPickItem>(options: PickerOption
 export function showMultiPicker<T extends vscode.QuickPickItem>(options: {
 	readonly title: string;
 	readonly placeholder?: string;
-	readonly items: readonly T[];
+	readonly items: readonly (T | Separator)[];
 	readonly selected?: readonly T[];
 }): Promise<T[] | undefined> {
 	return new Promise(resolve => {
 		const disposables = new DisposableStore();
-		const quickPick = disposables.add(vscode.window.createQuickPick<T>());
+		const quickPick = disposables.add(vscode.window.createQuickPick<T | Separator>());
 		let result: T[] | undefined;
 		quickPick.title = options.title;
 		quickPick.placeholder = options.placeholder;
@@ -161,7 +161,7 @@ export function showMultiPicker<T extends vscode.QuickPickItem>(options: {
 		quickPick.items = options.items;
 		quickPick.selectedItems = options.selected ?? [];
 		disposables.add(quickPick.onDidAccept(() => {
-			result = [...quickPick.selectedItems];
+			result = quickPick.selectedItems.filter((item): item is T => !isSeparator(item));
 			quickPick.hide();
 		}));
 		disposables.add(quickPick.onDidHide(() => {

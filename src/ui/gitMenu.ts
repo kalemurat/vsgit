@@ -57,7 +57,7 @@ export class GitMenu {
 			commandItem('Push…', () => sync.push(repository), 'repo-push'),
 			commandItem('Update Project…', () => sync.updateProject(all), 'repo-pull'),
 			commandItem('Pull…', () => sync.pull(repository), 'arrow-down'),
-			commandItem('Fetch', () => sync.fetch(all), 'cloud-download'),
+			commandItem('Fetch', () => sync.fetchAndReview(all), 'cloud-download', all.length > 1 ? `all ${all.length} repositories` : undefined),
 			separator(),
 			commandItem('Merge…', () => integration.merge(repository), 'git-merge'),
 			...(ongoing === 'merge' ? ongoingItems : []),

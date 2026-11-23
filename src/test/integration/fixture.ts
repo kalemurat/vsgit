@@ -64,6 +64,7 @@ export function createFixture(): Fixture {
 		other,
 		git,
 		commit,
-		dispose: () => fs.rmSync(root, { recursive: true, force: true }),
+		// The built-in Git extension may still be writing into `.git` (ENOTEMPTY); rmSync retries those errors.
+		dispose: () => fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
 	};
 }

@@ -77,6 +77,41 @@ suite('VSGit flows (end to end)', function () {
 		assert.strictEqual(current(fixture), 'main');
 	});
 
+	test('Branches with incoming commits are listed across repositories and updated together', async () => {
+		const a = await open();
+		const b = await open();
+		// A branch that is not checked out, with a local commit and an incoming one.
+		a.fixture.git(a.fixture.work, 'branch', '-q', 'diverged', 'origin/feature~1');
+		a.fixture.git(a.fixture.work, 'branch', '-q', '--set-upstream-to=origin/feature', 'diverged');
+		a.fixture.git(a.fixture.work, 'checkout', '-q', 'diverged');
+		a.fixture.commit(a.fixture.work, 'local.txt', 'local\n', 'Local work');
+		a.fixture.git(a.fixture.work, 'checkout', '-q', 'main');
+		await refreshed(a.repository, 'main');
+
+		const incoming = await flows.sync.findIncomingBranches([b.repository, a.repository]);
+		const describe = (entry: { repository: GitRepository; branch: { name: string } }): string =>
+			`${entry.repository === a.repository ? 'a' : 'b'}:${entry.branch.name}`;
+		// Both fixtures are named `work`, so only grouping and the order within a repository are fixed.
+		const order = incoming.map(describe);
+		const expected = order[0].startsWith('a:')
+			? ['a:main', 'a:diverged', 'a:feature', 'b:main', 'b:feature']
+			: ['b:main', 'b:feature', 'a:main', 'a:diverged', 'a:feature'];
+		assert.deepStrictEqual(order, expected, 'grouped by repository, current branch first');
+
+		const result = await flows.sync.updateBranches(incoming, 'merge');
+
+		assert.deepStrictEqual(result.rejected.map(describe), ['a:diverged']);
+		assert.deepStrictEqual(result.failed, []);
+		assert.deepStrictEqual(result.updated.map(describe).sort(), ['a:feature', 'a:main', 'b:feature', 'b:main']);
+		for (const { fixture } of [a, b]) {
+			assert.strictEqual(rev(fixture, 'main'), rev(fixture, 'origin/main'));
+			assert.strictEqual(rev(fixture, 'feature'), rev(fixture, 'origin/feature'));
+			assert.strictEqual(current(fixture), 'main');
+		}
+		assert.strictEqual(a.fixture.git(a.fixture.work, 'log', '-1', '--format=%s', 'diverged'), 'Local work', 'diverged branch untouched');
+		assert.deepStrictEqual(await flows.sync.findIncomingBranches([a.repository, b.repository]).then(list => list.map(describe)), ['a:diverged']);
+	});
+
 	test('Update Project with merge reconciles a diverged current branch', async () => {
 		const { fixture, repository } = await open();
 		fixture.commit(fixture.work, 'local.txt', 'local\n', 'Local commit');

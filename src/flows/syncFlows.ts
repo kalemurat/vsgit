@@ -108,7 +108,7 @@ export class SyncFlows {
 		const { items, selected } = buildIncomingItems(incoming, method, open.length > 1);
 		const picked = await showMultiPicker<IncomingBranchItem>({
 			title: 'Update Branches with Incoming Commits',
-			placeholder: 'Select the branches to update, then press Enter (branches that are not checked out are fast-forwarded)',
+			placeholder: 'Checked-out branches are preselected; tick others to fast-forward them without a checkout, then press Enter',
 			items,
 			selected,
 		});
@@ -168,13 +168,15 @@ export class SyncFlows {
 	}
 
 	private async offerIncomingUpdate(incoming: readonly IncomingBranch[], repositories: readonly GitRepository[]): Promise<void> {
-		const repositoryNames = [...new Set(incoming.map(entry => entry.repository.name))];
-		const where = repositoryNames.length > 1
-			? `in ${plural(repositoryNames.length, 'repository', 'repositories')}`
-			: `in ${quote(repositoryNames[0])}`;
+		const repositoryCount = new Set(incoming.map(entry => entry.repository)).size;
+		const where = repositoryCount > 1
+			? `in ${plural(repositoryCount, 'repository', 'repositories')}`
+			: `in ${quote(incoming[0].repository.name)}`;
+		const checkedOut = incoming.filter(entry => entry.branch.isCurrent).length;
+		const ofWhich = checkedOut > 0 ? ` (${checkedOut} checked out)` : '';
 		const update = 'Update Branches…';
 		const choice = await vscode.window.showInformationMessage(
-			`Fetch finished: ${plural(incoming.length, 'branch', 'branches')} ${where} ${incoming.length === 1 ? 'has' : 'have'} incoming commits.`,
+			`Fetch finished: ${plural(incoming.length, 'branch', 'branches')} ${where} ${incoming.length === 1 ? 'has' : 'have'} incoming commits${ofWhich}.`,
 			update);
 		if (choice === update) {
 			await this.updateIncomingBranches(repositories);

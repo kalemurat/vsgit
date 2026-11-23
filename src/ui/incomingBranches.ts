@@ -20,38 +20,42 @@ export function hasIncomingCommits(branch: LocalBranch): boolean {
 }
 
 /**
- * Items for the "Update Branches" picker, grouped under a separator per repository when
- * `groupByRepository` is set. Branches without local commits are preselected: the update is a plain
- * fast-forward for them. Branches with local commits are listed but left unselected, because the
- * current one would get a merge or rebase, and any other one cannot be updated without a checkout.
+ * Items for the "Update Branches" picker. The branches checked out in their repositories come first,
+ * in one section labelled `repository: branch` like the status bar, and are preselected: they are
+ * what the working trees are on. The other branches follow unselected, under a separator per
+ * repository when `groupByRepository` is set; they are fast-forwarded without a checkout when picked.
  */
 export function buildIncomingItems(
 	entries: readonly IncomingBranch[],
 	method: UpdateMethod,
 	groupByRepository: boolean,
 ): { items: (IncomingBranchItem | Separator)[]; selected: IncomingBranchItem[] } {
-	const items: (IncomingBranchItem | Separator)[] = [];
-	const selected: IncomingBranchItem[] = [];
-	let repository: GitRepository | undefined;
-	for (const entry of entries) {
-		if (groupByRepository && entry.repository !== repository) {
-			repository = entry.repository;
-			items.push(separator(repository.name));
-		}
+	const toItem = (entry: IncomingBranch): IncomingBranchItem => {
 		const { branch } = entry;
 		const note = branch.isCurrent
-			? `checked out, updates with ${method}`
+			? branch.ahead > 0 ? `has local commits, updates with a ${method}` : undefined
 			: branch.ahead > 0 ? 'has local commits, needs a checkout to update' : undefined;
-		const item: IncomingBranchItem = {
+		return {
 			entry,
-			label: branch.name,
+			label: branch.isCurrent && groupByRepository ? `${entry.repository.name}: ${branch.name}` : branch.name,
 			iconPath: refIcon(branch, false),
 			description: [refDescription(branch), note].filter(Boolean).join('  ·  '),
 		};
-		items.push(item);
-		if (branch.ahead === 0) {
-			selected.push(item);
+	};
+
+	const current = entries.filter(entry => entry.branch.isCurrent).map(toItem);
+	const items: (IncomingBranchItem | Separator)[] = current.length > 0 ? [separator('Checked Out'), ...current] : [];
+	let repository: GitRepository | undefined;
+	let othersHeaded = false;
+	for (const entry of entries.filter(candidate => !candidate.branch.isCurrent)) {
+		if (groupByRepository && entry.repository !== repository) {
+			repository = entry.repository;
+			items.push(separator(repository.name));
+		} else if (!groupByRepository && !othersHeaded && current.length > 0) {
+			items.push(separator('Other Branches'));
 		}
+		othersHeaded = true;
+		items.push(toItem(entry));
 	}
-	return { items, selected };
+	return { items, selected: current };
 }
